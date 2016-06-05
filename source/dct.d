@@ -29,6 +29,22 @@ ref const(T[N][N]) DCT_MATRIX(T, uint N)()
 	return instance;
 }
 
+void dct_1d(uint N,I,O)(I[] block, O[] rec, uint stride)
+{
+	for(uint k=0; k<N; ++k)
+	{
+		O sum = 0;
+
+		for(uint x=0; x<N; ++x)
+		{
+			sum += block[x * stride]
+				 * DCT_MATRIX!(O,N)()[x][k];
+		}
+
+		rec[k * stride] = sum * sqrt(2.0 / N);
+	}
+}
+
 void idct_1d(uint N,I,O)(I[] block, O[] rec, uint stride)
 {
 	const N2 = 2 * N;
@@ -48,10 +64,33 @@ void idct_1d(uint N,I,O)(I[] block, O[] rec, uint stride)
 	}
 }
 
-void idct_2d(uint N)(ref short[N*N] block)
+void dct_2d(uint N)(short[] block)
 {
-	real[N*N] rec;
-	real[N*N] rec2;
+	static auto rec = new real[N*N] ;
+	static auto rec2 = new real[N*N];
+
+	// rows
+	for(uint i=0; i<N; ++i)
+	{
+		dct_1d!N(block[i*N ..(i+1)*N], rec[i*N ..(i+1)*N], 1);
+	}
+
+	// columns
+	for(uint j=0; j<N; ++j)
+	{
+		dct_1d!N(rec[j..$], rec2[j..$], N);
+	}
+
+	for(uint i=0; i<N*N; ++i)
+	{
+		block[i] = cast(short) round(rec2[i]);
+	}
+}
+
+void idct_2d(uint N)(short[] block)
+{
+	static auto rec = new real[N*N] ;
+	static auto rec2 = new real[N*N];
 
 	// rows
 	for(uint i=0; i<N; ++i)

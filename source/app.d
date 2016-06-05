@@ -17,6 +17,10 @@ struct Options
 	@Help("Number of frames to encode.")
 	size_t frames_to_decode = size_t.max;
 
+	@Option("qp", "q")
+	@Help("Quantization parameter.")
+	short qp = 24;
+
 	@Argument("<input-file>")
 	@Help("Input file")
 	string input_file;
@@ -70,7 +74,7 @@ class App
 		int w,h;
 		parse_width_height(options.input_file, w, h);
 		auto reader = new YuvFileReader(options.input_file, w,h);
-		auto encoder = new Encoder(options.output_file);
+		auto encoder = new Encoder(options.output_file, options.qp);
 
 		int cnt = 0;
 		for(Picture pic = reader.read(); pic !is null && cnt < options.frames_to_decode; pic = reader.read())
@@ -87,8 +91,9 @@ class App
 
 	void parse_width_height(string s, ref int w, ref int h)
 	{
-		auto r = regex(r"\d+x\d+");
+		auto r = regex(r"(\d+)x(\d+)+");
 		auto c = matchFirst(s, r);
+		enforce(c, "failed to deduce video size from filename (using WxH entry)");
 		w = to!int(c[1]);
 		h = to!int(c[2]);
 	}

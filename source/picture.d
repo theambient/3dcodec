@@ -1,6 +1,8 @@
 
 module picture;
 
+import std.math;
+
 class Plane
 {
 	private short[] _pixels;
@@ -69,4 +71,27 @@ class Picture
 	{
 		return c>0?2:1;
 	}
+
+	size_t width() @property const
+	{
+		return planes[0].width;
+	}
+
+	size_t height() @property const
+	{
+		return planes[0].height;
+	}
+}
+
+real psnr(Plane l, Plane r)
+{
+	real mse = 0;
+	foreach(k; 0..l.size)
+	{
+		auto v = l.pixels[k] - r.pixels[k];
+		mse += v*v;
+	}
+	mse /= l.size;
+
+	return 10 * log10(255*255/mse);
 }
