@@ -1,0 +1,11 @@
+{
+	"name": "3dcodec",
+	"description": "3D codec",
+	"copyright": "Copyright © 2016, Ruslan Mullakhmetov",
+	"authors": ["Ruslan Mullakhmetov"],
+	"dependencies":
+	{
+		"dests": "~>0.3.0",
+		"darg": "~>0.0.4"
+	}
+}
