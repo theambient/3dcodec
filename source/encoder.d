@@ -1,12 +1,13 @@
 
 module encoder;
 
+import bm3d;
 import dct;
 import picture;
 import std.stdio;
 import std.exception;
 
-const MB_WIDTH = 16;
+const MB_WIDTH = 8;
 
 class Encoder
 {
@@ -47,7 +48,9 @@ class Encoder
 			}
 		}
 
-		print_psnr(pic, rec);
+		auto filt = bm3d_run(pic);
+		writef("rec : "); print_psnr(pic, rec);
+		writef("filt: "); print_psnr(filt, rec);
 		write_picture(rec);
 	}
 

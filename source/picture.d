@@ -6,10 +6,10 @@ import std.math;
 class Plane
 {
 	private short[] _pixels;
-	private size_t _width;
-	private size_t _height;
+	private uint _width;
+	private uint _height;
 
-	this(size_t width, size_t height)
+	this(uint width, uint height)
 	{
 		_width = width;
 		_height = height;
@@ -26,17 +26,17 @@ class Plane
 		return _pixels[y * _width + x];
 	}
 
-	size_t size() @property const
+	uint size() @property const
 	{
 		return _width * _height;
 	}
 
-	size_t width() @property const
+	uint width() @property const
 	{
 		return _width;
 	}
 
-	size_t height() @property const
+	uint height() @property const
 	{
 		return _height;
 	}
@@ -54,7 +54,7 @@ class Picture
 	uint dts;
 	uint pts;
 
-	this(size_t width, size_t height)
+	this(uint width, uint height)
 	{
 		foreach(cc; 0..3)
 		{
@@ -62,22 +62,22 @@ class Picture
 		}
 	}
 
-	size_t scale_x(int c)
+	uint scale_x(int c)
 	{
 		return c>0?2:1;
 	}
 
-	size_t scale_y(int c)
+	uint scale_y(int c)
 	{
 		return c>0?2:1;
 	}
 
-	size_t width() @property const
+	uint width() @property const
 	{
 		return planes[0].width;
 	}
 
-	size_t height() @property const
+	uint height() @property const
 	{
 		return planes[0].height;
 	}
