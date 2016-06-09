@@ -2,8 +2,12 @@
 module bm3d;
 
 import picture;
+import math;
 import std.algorithm;
 import std.array;
+import std.container.binaryheap;
+import std.datetime;
+import std.exception;
 import std.math;
 import std.stdio;
 import std.typecons;
@@ -48,13 +52,18 @@ Picture bm3d_run(Picture pic)
 	auto cols = prepare_idx(pic.width, bp.P);
 	auto rows = prepare_idx(pic.height, bp.P);
 
+	StopWatch sw;
+	sw.start();
 	auto patch_table = build_patch_table(pic, cols, rows, bp);
+	sw.stop();
+	writefln("build_patch_table time: %s", sw.peek.msecs / 1000.0);
 
+	enforce(sw.peek.msecs == 0);
 	foreach(i_r; rows)
 	{
 		foreach(j_r; cols)
 		{
-			writefln("(%s, %s)", i_r, j_r);
+			//writefln("(%s, %s)", i_r, j_r);
 			auto k_r = i_r * pic.width + j_r;
 			auto patches = patch_table[k_r];
 
@@ -192,14 +201,14 @@ real[] build_group_3d(Point[] patches, Picture pic, Params bp)
 Point[][] build_patch_table(Picture pic, short[] cols, short[] rows, Params bp)
 {
 	auto patch_table = new Point[][pic.width * pic.height];
+	auto plane = pic.planes[0];
 
 	foreach(i_r; rows)
 	{
-		writefln("pt: (%s)", i_r);
 		foreach(j_r; cols)
 		{
 			auto pt = Point(j_r, i_r);
-			auto patches = find_patches(pic, bp, pt);
+			auto patches = find_patches(plane, bp, pt);
 			patch_table[i_r * pic.width + j_r] = patches;
 		}
 	}
@@ -207,32 +216,44 @@ Point[][] build_patch_table(Picture pic, short[] cols, short[] rows, Params bp)
 	return patch_table;
 }
 
-uint patch_distance(Picture pic, Point pt0, Point pt1, int K)
+uint patch_distance(Plane plane, Point pt0, Point pt1, uint K)
 {
-	auto plain = pic.planes[0];
+	auto pixels = plane.pixels;
 	uint d = 0;
+
+	uint idx0 = pt0.y * plane.width + pt0.x;
+	uint idx1 = pt1.y * plane.width + pt1.x;
 
 	foreach(dy; 0..K)
 	{
 		foreach(dx; 0..K)
 		{
-			d += abs(plain[pt0.x + dx, pt0.y + dy] - plain[pt1.x + dx, pt1.y + dy]);
+			d += abs(pixels[idx0] - pixels[idx1]);
+			++idx0;
+			++idx1;
 		}
+
+		idx0 += plane.width - K;
+		idx1 += plane.width - K;
 	}
 
 	return d;
 }
 
-Point[] find_patches(Picture pic, Params bp, Point pt)
+Point[] find_patches(Plane pic, Params bp, Point pt)
 {
 	short xlo = cast(short) max(0, pt.x - bp.nHW);
 	short xhi = cast(short) max(pic.width - bp.K, pt.x + bp.nHW + 1);
 	short ylo = cast(short) max(0, pt.y - bp.nHW);
 	short yhi = cast(short) min(pic.height - bp.K, pt.y + bp.nHW + 1);
 
-	auto threshold = 20 * bp.K2;
+	uint threshold = 20 * bp.K2;
 
 	Tuple!(Point,uint)[] table_distance;
+	table_distance.length = bp.N + 1;
+	auto plane = pic;
+	auto pixels = plane.pixels;
+	auto heap = heapify!((l, r) => l[1] < r[1])(table_distance, 0);
 
 	foreach(y; ylo..yhi)
 	{
@@ -246,12 +267,17 @@ Point[] find_patches(Picture pic, Params bp, Point pt)
 
 			if(d < threshold)
 			{
-				table_distance ~= tuple(test_point, d);
+				//table_distance ~= tuple(test_point, d);
+				heap.insert(tuple(test_point, d));
+				if(heap.length > bp.N)
+				{
+					heap.popFront;
+					threshold = heap.front[1];
+				}
 			}
 		}
 	}
 
-	sort!((l, r) => l[1] < r[1])(table_distance);
 	table_distance = table_distance[0..min($, bp.N)];
 
 	return map!(x => x[0])(table_distance).array;

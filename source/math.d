@@ -40,3 +40,8 @@ real norm(V)(V[] v)
 
 	return sum;
 }
+
+auto sqr(T)(T t)
+{
+	return t*t;
+}
