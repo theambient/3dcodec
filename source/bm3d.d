@@ -1,6 +1,7 @@
 
 module bm3d;
 
+import des.ts;
 import picture;
 import math;
 import std.algorithm;
@@ -10,6 +11,7 @@ import std.datetime;
 import std.exception;
 import std.math;
 import std.stdio;
+import std.string;
 import std.typecons;
 
 /**
@@ -18,10 +20,10 @@ import std.typecons;
 
 struct Params
 {
-	int nHW = 18;
+	int nHW = 8;
 	int N = 8;
 	int K = 4;
-	int P = 2;
+	int P = 3;
 	real sigma = 5.;
 
 	int K2() const @property
@@ -49,8 +51,8 @@ Picture bm3d_run(Picture pic)
 	auto filt = new Picture(pic.width, pic.height);
 
 	Params bp;
-	auto cols = prepare_idx(pic.width, bp.P);
-	auto rows = prepare_idx(pic.height, bp.P);
+	auto cols = prepare_idx(pic.width, bp.P, bp.K);
+	auto rows = prepare_idx(pic.height, bp.P, bp.K);
 
 	StopWatch sw;
 	sw.start();
@@ -58,7 +60,6 @@ Picture bm3d_run(Picture pic)
 	sw.stop();
 	writefln("build_patch_table time: %s", sw.peek.msecs / 1000.0);
 
-	enforce(sw.peek.msecs == 0);
 	foreach(i_r; rows)
 	{
 		foreach(j_r; cols)
@@ -69,15 +70,15 @@ Picture bm3d_run(Picture pic)
 
 			auto group_3d = build_group_3d(patches, pic, bp);
 			rearange_group_3d_fwd(group_3d, bp, patches.length);
-			filter_group_3d(group_3d, bp, patches.length);
+			//filter_group_3d(group_3d, bp, patches.length);
 			rearange_group_3d_inv(group_3d, bp, patches.length);
 			register_group_3d(group_3d, bp, nom, den, patches, pic.width);
 		}
 	}
 
-	foreach(y; rows)
+	foreach(y; 0..pic.height)
 	{
-		foreach(x; cols)
+		foreach(x; 0..pic.width)
 		{
 			auto idx = y * pic.width + x;
 			filt.planes[0][x, y] = cast(short)(nom[idx] / den[idx]);
@@ -161,6 +162,8 @@ void register_group_3d(const real[] group_3d, Params bp, real[] nom, real[] den,
 				nom[idx] += p[y * bp.K + x];
 				den[idx] += 1;
 			}
+
+		dn += bp.K2;
 	}
 }
 
@@ -193,6 +196,8 @@ real[] build_group_3d(Point[] patches, Picture pic, Params bp)
 		foreach(y; 0..bp.K)
 			foreach(x; 0..bp.K)
 				p[y * bp.K + x] = pic.planes[0][ppt.x + x, ppt.y + y];
+
+		dn += bp.K2;
 	}
 
 	return group_3d;
@@ -218,7 +223,8 @@ Point[][] build_patch_table(Picture pic, short[] cols, short[] rows, Params bp)
 
 uint patch_distance(Plane plane, Point pt0, Point pt1, uint K)
 {
-	auto pixels = plane.pixels;
+	const auto pixels = plane.pixels;
+	const auto pixels_length = plane.pixels.length;
 	uint d = 0;
 
 	uint idx0 = pt0.y * plane.width + pt0.x;
@@ -243,14 +249,14 @@ uint patch_distance(Plane plane, Point pt0, Point pt1, uint K)
 Point[] find_patches(Plane pic, Params bp, Point pt)
 {
 	short xlo = cast(short) max(0, pt.x - bp.nHW);
-	short xhi = cast(short) max(pic.width - bp.K, pt.x + bp.nHW + 1);
+	short xhi = cast(short) min(pic.width - bp.K + 1, pt.x + bp.nHW + 1);
 	short ylo = cast(short) max(0, pt.y - bp.nHW);
-	short yhi = cast(short) min(pic.height - bp.K, pt.y + bp.nHW + 1);
+	short yhi = cast(short) min(pic.height - bp.K + 1, pt.y + bp.nHW + 1);
 
 	uint threshold = 20 * bp.K2;
 
 	Tuple!(Point,uint)[] table_distance;
-	table_distance.length = bp.N + 1;
+	table_distance.length = bp.N;
 	auto plane = pic;
 	auto pixels = plane.pixels;
 	auto heap = heapify!((l, r) => l[1] < r[1])(table_distance, 0);
@@ -260,16 +266,15 @@ Point[] find_patches(Plane pic, Params bp, Point pt)
 		foreach(x; xlo..xhi)
 		{
 			if(abs(x-pt.x) + abs(y-pt.y) > bp.nHW) continue;
-			//if(x == pt.x && y == pt.y) continue;
+			if(x == pt.x && y == pt.y) continue;
 
 			auto test_point = Point(x, y);
 			auto d = patch_distance(pic, pt, test_point, bp.K);
 
 			if(d < threshold)
 			{
-				//table_distance ~= tuple(test_point, d);
 				heap.insert(tuple(test_point, d));
-				if(heap.length > bp.N)
+				if(heap.length >= bp.N)
 				{
 					heap.popFront;
 					threshold = heap.front[1];
@@ -278,19 +283,29 @@ Point[] find_patches(Plane pic, Params bp, Point pt)
 		}
 	}
 
-	table_distance = table_distance[0..min($, bp.N)];
+	if(table_distance.length > 1)
+	{
+		uint N = closest_power_of_2(table_distance.length);
+		table_distance = table_distance[0..N-1];
+	}
+	table_distance ~= tuple(pt, 0U);
+
+	assert(table_distance.length == closest_power_of_2(table_distance.length));
 
 	return map!(x => x[0])(table_distance).array;
 }
 
-short[] prepare_idx(uint len, uint P)
+short[] prepare_idx(uint len, uint P, uint K)
 {
 	short[] idxs;
 
-	for(short i = 0; i<len; i+= P)
+	for(short i = 0; i<len-K; i+= P)
 	{
 		idxs ~= i;
 	}
+
+	if(idxs.back != len - K)
+		idxs ~= cast(short)(len - K);
 
 	return idxs;
 }
