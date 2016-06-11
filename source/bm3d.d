@@ -20,9 +20,9 @@ import std.typecons;
 
 struct Params
 {
-	int nHW = 8;
+	int nHW = 18;
 	int N = 8;
-	int K = 4;
+	int K = 6;
 	int P = 3;
 	real sigma = 5.;
 
@@ -40,7 +40,7 @@ struct Point
 
 static assert(Point.sizeof == uint.sizeof);
 
-Picture bm3d_run(Picture pic)
+Picture bm3d_run(Picture pic, Params bp)
 {
 	auto nom = new real[pic.width * pic.height];
 	auto den = new real[pic.width * pic.height];
@@ -50,7 +50,6 @@ Picture bm3d_run(Picture pic)
 
 	auto filt = new Picture(pic.width, pic.height);
 
-	Params bp;
 	auto cols = prepare_idx(pic.width, bp.P, bp.K);
 	auto rows = prepare_idx(pic.height, bp.P, bp.K);
 
@@ -70,7 +69,7 @@ Picture bm3d_run(Picture pic)
 
 			auto group_3d = build_group_3d(patches, pic, bp);
 			rearange_group_3d_fwd(group_3d, bp, patches.length);
-			//filter_group_3d(group_3d, bp, patches.length);
+			filter_group_3d(group_3d, bp, patches.length);
 			rearange_group_3d_inv(group_3d, bp, patches.length);
 			register_group_3d(group_3d, bp, nom, den, patches, pic.width);
 		}
@@ -120,10 +119,10 @@ void rearange_group_3d_inv(ref real[] group_3d, Params bp, size_t npatches)
 
 void filter_group_3d(real[] group_3d, Params bp, size_t npatches)
 {
-	const T = 2.7 * bp.sigma * npatches;
 	auto tmp = new real[npatches];
-	auto coef = pow(SQRT1_2, npatches);
-	auto coef_norm = 1 / (coef * coef);
+	real coef = sqrt(cast(real) npatches);
+	real coef_norm = 1.0 / npatches;
+	const T = 2.7 * bp.sigma * coef;
 
 	foreach(k; 0..bp.K2)
 	{
@@ -132,13 +131,13 @@ void filter_group_3d(real[] group_3d, Params bp, size_t npatches)
 
 		foreach(ref pel; stride)
 		{
-			if(pel < T)
+			if(abs(pel) < T)
 			{
 				pel = 0;
 				continue;
 			}
 
-			auto v = pel * pel / (pel * pel + bp.sigma * bp.sigma);
+			auto v = pel * pel / (pel * pel + bp.sigma * bp.sigma * coef * coef);
 			pel *= v;
 		}
 

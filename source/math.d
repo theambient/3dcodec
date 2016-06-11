@@ -1,7 +1,7 @@
 
 module math;
 
-import std.math;
+public import std.math;
 
 byte sign(T)(T v)
 {

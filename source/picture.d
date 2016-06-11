@@ -2,6 +2,7 @@
 module picture;
 
 import std.math;
+import std.stdio;
 
 class Plane
 {
@@ -94,4 +95,27 @@ real psnr(Plane l, Plane r)
 	mse /= l.size;
 
 	return 10 * log10(255*255/mse);
+}
+
+auto clip(T)(T v, T lo, T hi)
+{
+	if(v < lo) v = lo;
+	else if (v > hi) v = hi;
+
+	return v;
+}
+
+void write_picture(Picture pic, File fd)
+{
+	auto buf = new ubyte[pic.planes[0].size];
+	foreach(cc; 0..3)
+	{
+		auto plane = pic.planes[cc];
+		auto plane_buf = buf[0..plane.size];
+		foreach(k;0..plane.size)
+		{
+			plane_buf[k] = cast(ubyte) plane.pixels[k];
+		}
+		fd.rawWrite(plane_buf);
+	}
 }
