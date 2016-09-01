@@ -3,6 +3,7 @@ module encoder;
 
 import bm3d;
 import dct;
+import haar;
 import math;
 import picture;
 import std.algorithm;
@@ -10,7 +11,7 @@ import std.stdio;
 import std.random;
 import std.exception;
 
-const MB_WIDTH = 8;
+const MB_WIDTH = 256;
 
 class Encoder
 {
@@ -22,6 +23,45 @@ class Encoder
 	}
 
 	public void encode(Picture pic)
+	{
+		const N2 = 576/2;
+
+		auto rec = new Picture(pic.width, pic.height);
+
+		foreach(i;0..N2)
+		{
+			foreach(j;0..N2)
+			{
+				rec.planes[0][j, i] = pic.planes[0][2*j, 2*i];
+				rec.planes[0][j, N2 + i] = cast(short) (0.25 * (pic.planes[0][2*j, 2*i] + pic.planes[0][2*j+1, 2*i] + pic.planes[0][2*j, 2*i+1] + pic.planes[0][2*j+1, 2*i+1]));
+			}
+		}
+
+		haar_2d!576(pic.planes[0].pixels);
+		foreach(i;0..576/2)
+		{
+			foreach(j;576/2..576)
+			{
+				pic.planes[0][j, i] = 0;
+			}
+		}
+
+		pic.planes[0].pixels[576*576/2..$] = 0;
+
+		ihaar_2d!576(pic.planes[0].pixels);
+
+		foreach(i;0..N2)
+		{
+			foreach(j;0..N2)
+			{
+				rec.planes[0][N2 + j, i] = pic.planes[0][2*j, 2*i];
+			}
+		}
+
+		write_picture(rec, fd);
+	}
+
+	public void encode2(Picture pic)
 	{
 		auto block = new short[MB_WIDTH*MB_WIDTH];
 		auto rec = new Picture(pic.width, pic.height);
@@ -39,6 +79,7 @@ class Encoder
 						auto idx = (by + y)*plane.width + bx;
 						block[MB_WIDTH * y..MB_WIDTH * (y+1)] = plane.pixels[idx..idx + MB_WIDTH];
 					}
+
 					dct_2d!MB_WIDTH(block);
 					quantize(block, qp);
 					idct_2d!MB_WIDTH(block);
@@ -52,7 +93,7 @@ class Encoder
 			}
 		}
 
-		bm3d_filter.filter(pic, rec);
+		//bm3d_filter.filter(pic, rec);
 		writef("rec : "); print_psnr(pic, rec);
 		write_picture(rec, fd);
 	}
@@ -114,10 +155,10 @@ class Bm3dFilter
 		writef("nonf: "); print_psnr(pic, rec);
 		writef("filt: "); print_psnr(pic, flt);
 
-		//File fd_flt    = File("flt_576x576.yuv", "wb");
-		//File fd_non_flt = File("non_flt_576x576.yuv", "wb");
-		//write_picture(flt, fd_flt);
-		//write_picture(rec, fd_non_flt);
+		File fd_flt    = File("flt_576x576.yuv", "wb");
+		File fd_non_flt = File("non_flt_576x576.yuv", "wb");
+		write_picture(flt, fd_flt);
+		write_picture(rec, fd_non_flt);
 
 		int block_size = 64;
 		real sse = 0;
